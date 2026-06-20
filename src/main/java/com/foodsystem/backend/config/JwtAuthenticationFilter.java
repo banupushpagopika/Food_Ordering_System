@@ -21,7 +21,7 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final UserDetailsService userDetailsService;
+    private final com.foodsystem.backend.repository.UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -36,8 +36,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Get username from token
             String username = jwtTokenProvider.getUsername(token);
 
-            // Load user details
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            // Load user details directly to avoid circular dependency
+            UserDetails userDetails = userRepository.findByEmail(username)
+                    .map(user -> org.springframework.security.core.userdetails.User
+                            .withUsername(user.getEmail())
+                            .password(user.getPassword())
+                            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(user.getRole().name()))
+                            .build())
+                    .orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found with email: " + username));
 
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                     userDetails,
